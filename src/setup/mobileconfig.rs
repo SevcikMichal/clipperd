@@ -1,10 +1,7 @@
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use rustls_pemfile::certs;
 
-/// Generate a .mobileconfig XML payload that installs the CA cert on iOS.
-/// The user installs this via Safari → Settings → trusts it in Certificate Trust Settings.
 pub fn generate_mobileconfig(ca_cert_pem: &str) -> anyhow::Result<String> {
-    // Extract DER bytes from PEM
     let mut reader = std::io::BufReader::new(ca_cert_pem.as_bytes());
     let der_certs: Vec<_> = certs(&mut reader).collect::<Result<_, _>>()?;
     let der = der_certs.first().ok_or_else(|| anyhow::anyhow!("No cert in PEM"))?;
@@ -55,7 +52,7 @@ pub fn generate_mobileconfig(ca_cert_pem: &str) -> anyhow::Result<String> {
     <integer>1</integer>
 </dict>
 </plist>
-"#, cert_b64 = cert_b64, uuid = uuid, profile_uuid = profile_uuid))
+"#))
 }
 
 fn generate_uuid() -> String {

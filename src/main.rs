@@ -20,7 +20,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// First-time setup: generates keys, token, and starts the pairing wizard
+    /// Generate keys (first run) and start the pairing wizard
     Setup {
         /// Port for the HTTPS daemon (default: 7171)
         #[arg(long, default_value_t = 7171)]
@@ -59,8 +59,6 @@ async fn main() -> anyhow::Result<()> {
         Commands::Status => cmd_status(),
     }
 }
-
-// ── setup ────────────────────────────────────────────────────────────────────
 
 async fn cmd_setup(port: u16, bind_local_only: bool) -> anyhow::Result<()> {
     let (cfg, fingerprint) = if config::Config::is_configured() {
@@ -110,11 +108,8 @@ async fn cmd_setup(port: u16, bind_local_only: bool) -> anyhow::Result<()> {
     println!("   {}", fingerprint);
     println!();
 
-    // Build setup state
     let setup_state = setup::build_setup_state(
         &cfg.ca_cert_pem,
-        &cfg.cert_pem,
-        &cfg.key_pem,
         &cfg.token,
         cfg.port,
     )?;
@@ -141,15 +136,11 @@ async fn cmd_setup(port: u16, bind_local_only: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-// ── run ──────────────────────────────────────────────────────────────────────
-
 async fn cmd_run() -> anyhow::Result<()> {
     let config = config::Config::load()?;
     info!("Loaded config, port={}, local_only={}", config.port, config.bind_local_only);
     daemon::run(config).await
 }
-
-// ── status ───────────────────────────────────────────────────────────────────
 
 fn cmd_status() -> anyhow::Result<()> {
     if !config::Config::is_configured() {
@@ -179,8 +170,6 @@ fn cmd_status() -> anyhow::Result<()> {
 
     Ok(())
 }
-
-// ── helpers ──────────────────────────────────────────────────────────────────
 
 fn print_qr(url: &str) {
     use qrcode::{QrCode, render::unicode};

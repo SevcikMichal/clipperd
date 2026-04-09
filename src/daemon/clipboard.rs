@@ -19,11 +19,6 @@ impl ClipboardContent {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn is_empty(&self) -> bool {
-        matches!(self, ClipboardContent::Empty)
-    }
-
     /// Encode content to bytes for HTTP response body
     pub fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
         match self {
@@ -193,9 +188,6 @@ mod tests {
     }
 }
 
-/// Poll the system clipboard for changes, updating SharedState when content changes.
-/// Skips writing back to system clipboard for content we just received from remote
-/// (source == "remote" within 2 seconds) to avoid loops.
 pub async fn poll_clipboard(state: SharedState) {
     let mut last_hash: u64 = 0;
 
@@ -210,7 +202,6 @@ pub async fn poll_clipboard(state: SharedState) {
             }
         };
 
-        // Try text first
         let content = if let Ok(text) = cb.get_text() {
             if text.is_empty() {
                 ClipboardContent::Empty

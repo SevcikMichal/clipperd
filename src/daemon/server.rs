@@ -23,8 +23,6 @@ pub struct AppState {
     pub token: String,
 }
 
-// ── Routes ──────────────────────────────────────────────────────────────────
-
 /// GET /v1/clipboard — send current Linux clipboard to iOS
 async fn get_clipboard(State(state): State<AppState>) -> Response {
     let content = {
@@ -62,7 +60,6 @@ async fn post_clipboard(
         .trim()
         .to_string();
 
-    // Files: save to ~/Downloads
     if mime == "application/octet-stream" {
         let filename = headers
             .get("X-Filename")
@@ -84,12 +81,10 @@ async fn post_clipboard(
         Err(e) => return (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     };
 
-    // Write to system clipboard — non-fatal so tests and headless envs still update state
     if let Err(e) = write_to_system_clipboard(&content) {
         warn!("Could not write to system clipboard: {}", e);
     }
 
-    // Update shared state (mark as remote to avoid polling loop)
     {
         let mut guard = state.clipboard.write().unwrap();
         guard.content = content.clone();
@@ -97,7 +92,6 @@ async fn post_clipboard(
         guard.source = "remote".to_string();
     }
 
-    // Desktop notification
     let preview = match &content {
         ClipboardContent::Text(s) => {
             let truncated = if s.len() > 60 { format!("{}…", &s[..60]) } else { s.clone() };
@@ -117,7 +111,6 @@ async fn health() -> &'static str {
 }
 
 fn save_file(filename: &str, data: &[u8]) -> anyhow::Result<String> {
-    // Sanitize filename — strip path components
     let safe_name = std::path::Path::new(filename)
         .file_name()
         .and_then(|n| n.to_str())
@@ -138,8 +131,6 @@ fn notify(msg: &str) {
         .spawn();
 }
 
-// ── Router ───────────────────────────────────────────────────────────────────
-
 pub fn build_app(state: AppState) -> Router {
     let token = state.token.clone();
     let authed = Router::new()
@@ -152,8 +143,6 @@ pub fn build_app(state: AppState) -> Router {
         .merge(authed)
         .layer(TraceLayer::new_for_http())
 }
-
-// ── Server startup ───────────────────────────────────────────────────────────
 
 pub async fn run_https_server(
     state: AppState,
@@ -186,7 +175,6 @@ pub async fn run_https_server(
     Ok(())
 }
 
-/// Plain HTTP server for the setup wizard (no TLS, no auth)
 pub async fn run_setup_server(
     port: u16,
     setup_routes: Router,
@@ -271,7 +259,6 @@ mod tests {
         let state = test_state("tok");
         let app = build_app(state.clone());
 
-        // POST text to clipboard
         let post_response = app
             .oneshot(
                 Request::builder()
@@ -286,7 +273,6 @@ mod tests {
             .unwrap();
         assert_eq!(post_response.status(), StatusCode::OK);
 
-        // Verify shared state was updated
         let guard = state.clipboard.read().unwrap();
         assert!(
             matches!(&guard.content, ClipboardContent::Text(s) if s == "hello from iPhone"),
@@ -299,7 +285,6 @@ mod tests {
     async fn get_clipboard_returns_posted_content() {
         let state = test_state("tok");
 
-        // Pre-populate shared state
         {
             let mut guard = state.clipboard.write().unwrap();
             guard.content = ClipboardContent::Text("linux clipboard content".to_string());

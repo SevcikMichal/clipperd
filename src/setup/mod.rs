@@ -154,13 +154,9 @@ fn render_setup_html(state: &SetupState) -> String {
 
 pub fn build_setup_state(
     ca_cert_pem: &str,
-    cert_pem: &str,
-    key_pem: &str,
     token: &str,
     port: u16,
 ) -> anyhow::Result<SetupState> {
-    let _ = (cert_pem, key_pem);
-
     let ip = local_ip_address::local_ip()
         .unwrap_or_else(|_| "127.0.0.1".parse().unwrap());
     let host_url = format!("https://{}:{}", ip, port);

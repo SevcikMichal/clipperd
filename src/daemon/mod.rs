@@ -12,13 +12,11 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
 
     let clipboard_state = clipboard::new_shared_state();
 
-    // Start clipboard polling task
     let state_clone = clipboard_state.clone();
     tokio::spawn(async move {
         clipboard::poll_clipboard(state_clone).await;
     });
 
-    // Run HTTPS server
     let app_state = AppState {
         clipboard: clipboard_state,
         token: config.token.clone(),

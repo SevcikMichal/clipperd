@@ -1,10 +1,3 @@
-/// Generate iOS Shortcut files as XML plist (.shortcut format).
-///
-/// iOS imports them via the deep link:
-///   shortcuts://import-workflow/?url=<encoded_url>&name=<name>
-///
-/// The plist format is the standard Shortcuts workflow format used since iOS 12.
-
 fn new_uuid() -> String {
     use rand::RngCore;
     let mut bytes = [0u8; 16];
@@ -138,9 +131,6 @@ pub fn generate_send_shortcut(host_url: &str, token: &str) -> String {
                 </dict>
             </dict>
         </dict>"#,
-        clipboard_uuid = clipboard_uuid,
-        host_url = host_url,
-        headers = headers,
     );
 
     plist_wrapper(&actions)
@@ -242,9 +232,6 @@ pub fn generate_get_shortcut(host_url: &str, token: &str) -> String {
                 </dict>
             </dict>
         </dict>"#,
-        download_uuid = download_uuid,
-        host_url = host_url,
-        headers = headers,
     );
 
     plist_wrapper(&actions)
