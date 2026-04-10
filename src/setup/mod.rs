@@ -117,6 +117,15 @@ fn render_setup_html(state: &SetupState) -> String {
     </ul>
   </div></div>
   <div class="step"><div class="num">3</div><div>Tap the shortcut name at the top → rename to <b>Clipperd Send</b> → tap <b>Done</b>.</div></div>
+  <details style="margin-top:16px">
+    <summary style="cursor:pointer;font-weight:600;color:#007aff">Optional: strip rich text formatting</summary>
+    <p style="margin-top:8px">If you copy from apps that produce rich text (Mail, Notes, Safari) and want Linux to receive plain text, replace step 1–2 above with these actions:</p>
+    <div class="step"><div class="num">1</div><div>Search for <b>Get Clipboard</b> and add it.</div></div>
+    <div class="step"><div class="num">2</div><div>Search for <b>Get Type of Input</b> and add it — input auto-fills to <i>Clipboard</i>.</div></div>
+    <div class="step"><div class="num">3</div><div>Search for <b>If</b> and add it. Set condition to <b>is</b> → <b>Rich Text</b>.</div></div>
+    <div class="step"><div class="num">4</div><div>Inside the <b>If</b> block, search for <b>Text</b> and add it. Tap the text field and insert the <i>Clipboard</i> magic variable — Shortcuts will convert it to plain text.</div></div>
+    <div class="step"><div class="num">5</div><div>Tap <b>End If</b> to move past it, then add <b>Get Contents of URL</b> and configure it as above, but set Request Body to <b>If Result</b> — this will be the stripped text when rich, or the original clipboard otherwise.</div></div>
+  </details>
 </div>
 
 <div class="card">
