@@ -92,15 +92,7 @@ async fn post_clipboard(
         guard.source = "remote".to_string();
     }
 
-    let preview = match &content {
-        ClipboardContent::Text(s) => {
-            let truncated = if s.len() > 60 { format!("{}…", &s[..60]) } else { s.clone() };
-            format!("Clipperd: \"{}\"", truncated)
-        }
-        ClipboardContent::Image { .. } => "Clipperd: Image received".to_string(),
-        ClipboardContent::Empty => "Clipperd: Empty clipboard".to_string(),
-    };
-    notify(&preview);
+    notify("Data copied to clipboard");
 
     StatusCode::OK.into_response()
 }
