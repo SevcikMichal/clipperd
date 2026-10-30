@@ -10,14 +10,17 @@ fn new_uuid() -> String {
         u16::from_be_bytes(bytes[8..10].try_into().unwrap()),
         {
             let mut n: u64 = 0;
-            for &b in &bytes[10..16] { n = (n << 8) | b as u64; }
+            for &b in &bytes[10..16] {
+                n = (n << 8) | b as u64;
+            }
             n
         }
     )
 }
 
 fn header_dict(key: &str, value: &str) -> String {
-    format!(r#"
+    format!(
+        r#"
                             <dict>
                                 <key>WFItemType</key>
                                 <integer>0</integer>
@@ -48,7 +51,8 @@ fn header_dict(key: &str, value: &str) -> String {
 }
 
 fn http_headers_dict(headers: &str) -> String {
-    format!(r#"
+    format!(
+        r#"
                 <key>WFHTTPHeaders</key>
                 <dict>
                     <key>Value</key>
@@ -65,7 +69,8 @@ fn http_headers_dict(headers: &str) -> String {
 }
 
 fn plist_wrapper(actions: &str) -> String {
-    format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -94,7 +99,8 @@ pub fn generate_send_shortcut(host_url: &str, token: &str) -> String {
     let auth_header = header_dict("Authorization", &format!("Bearer {}", token));
     let headers = http_headers_dict(&auth_header);
 
-    let actions = format!(r#"
+    let actions = format!(
+        r#"
         <dict>
             <key>WFWorkflowActionIdentifier</key>
             <string>is.workflow.actions.getclipboard</string>
@@ -146,26 +152,53 @@ mod tests {
     #[test]
     fn send_shortcut_contains_url_and_token() {
         let xml = generate_send_shortcut(URL, TOKEN);
-        assert!(xml.contains(&format!("{}/v1/clipboard", URL)), "must contain endpoint URL");
-        assert!(xml.contains(&format!("Bearer {}", TOKEN)), "must contain Bearer token");
-        assert!(xml.contains("is.workflow.actions.getclipboard"), "must include Get Clipboard action");
-        assert!(xml.contains("is.workflow.actions.downloadurl"), "must include URL download action");
+        assert!(
+            xml.contains(&format!("{}/v1/clipboard", URL)),
+            "must contain endpoint URL"
+        );
+        assert!(
+            xml.contains(&format!("Bearer {}", TOKEN)),
+            "must contain Bearer token"
+        );
+        assert!(
+            xml.contains("is.workflow.actions.getclipboard"),
+            "must include Get Clipboard action"
+        );
+        assert!(
+            xml.contains("is.workflow.actions.downloadurl"),
+            "must include URL download action"
+        );
         assert!(xml.contains("POST"), "must use POST method");
     }
 
     #[test]
     fn get_shortcut_contains_url_and_token() {
         let xml = generate_get_shortcut(URL, TOKEN);
-        assert!(xml.contains(&format!("{}/v1/clipboard", URL)), "must contain endpoint URL");
-        assert!(xml.contains(&format!("Bearer {}", TOKEN)), "must contain Bearer token");
-        assert!(xml.contains("is.workflow.actions.downloadurl"), "must include URL download action");
-        assert!(xml.contains("is.workflow.actions.setclipboard"), "must include Set Clipboard action");
+        assert!(
+            xml.contains(&format!("{}/v1/clipboard", URL)),
+            "must contain endpoint URL"
+        );
+        assert!(
+            xml.contains(&format!("Bearer {}", TOKEN)),
+            "must contain Bearer token"
+        );
+        assert!(
+            xml.contains("is.workflow.actions.downloadurl"),
+            "must include URL download action"
+        );
+        assert!(
+            xml.contains("is.workflow.actions.setclipboard"),
+            "must include Set Clipboard action"
+        );
         assert!(xml.contains("GET"), "must use GET method");
     }
 
     #[test]
     fn shortcuts_are_valid_plist_xml() {
-        for xml in [generate_send_shortcut(URL, TOKEN), generate_get_shortcut(URL, TOKEN)] {
+        for xml in [
+            generate_send_shortcut(URL, TOKEN),
+            generate_get_shortcut(URL, TOKEN),
+        ] {
             assert!(xml.starts_with("<?xml"), "must start with XML declaration");
             assert!(xml.contains("<plist"), "must contain plist element");
             assert!(xml.contains("</plist>"), "plist must be closed");
@@ -180,14 +213,20 @@ mod tests {
         let send2 = generate_send_shortcut(URL, TOKEN);
         // Extract first UUID occurrence — they should differ across calls
         // (with overwhelming probability given 128-bit random UUIDs)
-        assert_ne!(send1, send2, "regenerated shortcuts should have different UUIDs");
+        assert_ne!(
+            send1, send2,
+            "regenerated shortcuts should have different UUIDs"
+        );
     }
 
     #[test]
     fn shortcut_output_references_clipboard_action_uuid() {
         let xml = generate_send_shortcut(URL, TOKEN);
         // The download action must reference the clipboard action's UUID as its body source
-        assert!(xml.contains("OutputUUID"), "POST body must reference clipboard action output");
+        assert!(
+            xml.contains("OutputUUID"),
+            "POST body must reference clipboard action output"
+        );
     }
 }
 
@@ -197,7 +236,8 @@ pub fn generate_get_shortcut(host_url: &str, token: &str) -> String {
     let auth_header = header_dict("Authorization", &format!("Bearer {}", token));
     let headers = http_headers_dict(&auth_header);
 
-    let actions = format!(r#"
+    let actions = format!(
+        r#"
         <dict>
             <key>WFWorkflowActionIdentifier</key>
             <string>is.workflow.actions.downloadurl</string>

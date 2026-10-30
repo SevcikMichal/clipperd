@@ -6,6 +6,7 @@ pub struct Config {
     pub token: String,
     pub port: u16,
     pub bind_local_only: bool,
+    pub bind_ip: Option<String>,
     pub cert_pem: String,
     pub key_pem: String,
     pub ca_cert_pem: String,
@@ -25,8 +26,12 @@ impl Config {
 
     pub fn load() -> anyhow::Result<Self> {
         let path = Self::config_path();
-        let content = std::fs::read_to_string(&path)
-            .map_err(|_| anyhow::anyhow!("Config not found at {}. Run `clipperd setup` first.", path.display()))?;
+        let content = std::fs::read_to_string(&path).map_err(|_| {
+            anyhow::anyhow!(
+                "Config not found at {}. Run `clipperd setup` first.",
+                path.display()
+            )
+        })?;
         Ok(toml::from_str(&content)?)
     }
 

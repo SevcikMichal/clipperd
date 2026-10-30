@@ -13,9 +13,7 @@ use tower_http::trace::TraceLayer;
 use tracing::{info, warn};
 
 use crate::daemon::auth::require_auth;
-use crate::daemon::clipboard::{
-    parse_incoming, write_to_system_clipboard, ClipboardContent, SharedState,
-};
+use crate::daemon::clipboard::{parse_incoming, write_to_system_clipboard, SharedState};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -33,12 +31,7 @@ async fn get_clipboard(State(state): State<AppState>) -> Response {
     match content.to_bytes() {
         Ok(bytes) => {
             let mime = content.mime_type();
-            (
-                StatusCode::OK,
-                [(header::CONTENT_TYPE, mime)],
-                bytes,
-            )
-                .into_response()
+            (StatusCode::OK, [(header::CONTENT_TYPE, mime)], bytes).into_response()
         }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
@@ -136,22 +129,36 @@ pub fn build_app(state: AppState) -> Router {
         .layer(TraceLayer::new_for_http())
 }
 
+fn resolve_bind_ip(bind_all: bool, ext_ip: Option<&str>) -> std::net::IpAddr {
+    if bind_all {
+        "0.0.0.0".parse().unwrap()
+    } else if let Some(ip_str) = ext_ip {
+        ip_str.parse().unwrap_or_else(|_| {
+            local_ip_address::local_ip().unwrap_or_else(|_| "127.0.0.1".parse().unwrap())
+        })
+    } else {
+        local_ip_address::local_ip().unwrap_or_else(|_| "127.0.0.1".parse().unwrap())
+    }
+}
+
 pub async fn run_https_server(
     state: AppState,
     port: u16,
     cert_pem: &str,
     key_pem: &str,
     bind_local_only: bool,
+    bind_ip: Option<String>,
 ) -> anyhow::Result<()> {
-    let tls_config = RustlsConfig::from_pem(
-        cert_pem.as_bytes().to_vec(),
-        key_pem.as_bytes().to_vec(),
-    )
-    .await?;
+    let tls_config =
+        RustlsConfig::from_pem(cert_pem.as_bytes().to_vec(), key_pem.as_bytes().to_vec()).await?;
 
     let app = build_app(state);
 
-    let ip: std::net::IpAddr = if bind_local_only {
+    let ip: std::net::IpAddr = if let Some(ip_str) = bind_ip {
+        ip_str
+            .parse()
+            .unwrap_or_else(|_| "127.0.0.1".parse().unwrap())
+    } else if bind_local_only {
         local_ip_address::local_ip().unwrap_or_else(|_| "127.0.0.1".parse().unwrap())
     } else {
         "0.0.0.0".parse().unwrap()
@@ -170,10 +177,12 @@ pub async fn run_https_server(
 pub async fn run_setup_server(
     port: u16,
     setup_routes: Router,
+    bind_all: bool,
+    ext_ip: Option<&str>,
 ) -> anyhow::Result<()> {
-    let ip = local_ip_address::local_ip().unwrap_or_else(|_| "127.0.0.1".parse().unwrap());
+    let ip = resolve_bind_ip(bind_all, ext_ip);
     let addr = SocketAddr::new(ip, port);
-    info!("Setup HTTP server on http://{}", addr);
+    info!("Setup HTTP server listening on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, setup_routes).await?;
@@ -198,7 +207,12 @@ mod tests {
     async fn health_returns_ok() {
         let app = build_app(test_state("token"));
         let response = app
-            .oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
@@ -208,7 +222,12 @@ mod tests {
     async fn clipboard_get_requires_auth() {
         let app = build_app(test_state("secret"));
         let response = app
-            .oneshot(Request::builder().uri("/v1/clipboard").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/clipboard")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -295,7 +314,9 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
         assert_eq!(body.as_ref(), b"linux clipboard content");
     }
 }
