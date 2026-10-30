@@ -28,6 +28,7 @@ clipperd daemon (Rust)
 - 256-bit random auth token
 - Runs as a systemd user service
 - Zero cloud dependency
+- VPN & Tailscale support
 
 ## Requirements
 
@@ -111,7 +112,9 @@ clipperd status   Show configuration and certificate info
 Options for `setup`:
 ```
 --port <PORT>    Port to listen on (default: 7171)
---bind-all       Bind to 0.0.0.0 instead of LAN IP
+--bind-all       Bind to 0.0.0.0 and automatically include all interfaces (Wi-Fi, VPNs) in the TLS cert
+--ext-ip <IP>    Strictly bind to a specific IP (e.g. Tailscale) and isolate the daemon from the LAN
+(Note: --bind-all and --ext-ip cannot be used together).
 ```
 
 ## Security
@@ -119,7 +122,7 @@ Options for `setup`:
 - All traffic is **TLS 1.3 encrypted** — the token and clipboard contents are never sent in plaintext
 - The auth token is **256 bits of random entropy** — not guessable
 - Token comparison uses **constant-time equality** to prevent timing attacks
-- The daemon binds to your **LAN IP only** by default — not exposed to the internet
+- The daemon binds to your **LAN IP only by default** (or strictly to your specified --ext-ip) — not exposed to the internet
 - Config and keys are stored at `~/.config/clipperd/config.toml` with **mode 0600**
 - No data ever touches a third-party server
 
