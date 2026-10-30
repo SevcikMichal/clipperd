@@ -40,7 +40,10 @@ async fn serve_mobileconfig(AxumState(state): AxumState<Arc<SetupState>>) -> Res
         StatusCode::OK,
         [
             (header::CONTENT_TYPE, "application/x-apple-aspen-config"),
-            (header::CONTENT_DISPOSITION, "attachment; filename=\"clipperd-setup.mobileconfig\""),
+            (
+                header::CONTENT_DISPOSITION,
+                "attachment; filename=\"clipperd-setup.mobileconfig\"",
+            ),
         ],
         state.mobileconfig.clone(),
     )
@@ -52,7 +55,10 @@ async fn serve_send_shortcut(AxumState(state): AxumState<Arc<SetupState>>) -> Re
         StatusCode::OK,
         [
             (header::CONTENT_TYPE, "application/octet-stream"),
-            (header::CONTENT_DISPOSITION, "attachment; filename=\"Clipperd-Send.shortcut\""),
+            (
+                header::CONTENT_DISPOSITION,
+                "attachment; filename=\"Clipperd-Send.shortcut\"",
+            ),
         ],
         state.send_shortcut.clone(),
     )
@@ -64,7 +70,10 @@ async fn serve_get_shortcut(AxumState(state): AxumState<Arc<SetupState>>) -> Res
         StatusCode::OK,
         [
             (header::CONTENT_TYPE, "application/octet-stream"),
-            (header::CONTENT_DISPOSITION, "attachment; filename=\"Clipperd-Get.shortcut\""),
+            (
+                header::CONTENT_DISPOSITION,
+                "attachment; filename=\"Clipperd-Get.shortcut\"",
+            ),
         ],
         state.get_shortcut.clone(),
     )
@@ -72,7 +81,8 @@ async fn serve_get_shortcut(AxumState(state): AxumState<Arc<SetupState>>) -> Res
 }
 
 fn render_setup_html(state: &SetupState) -> String {
-    format!(r#"<!DOCTYPE html>
+    format!(
+        r#"<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -161,13 +171,8 @@ fn render_setup_html(state: &SetupState) -> String {
     )
 }
 
-pub fn build_setup_state(
-    ca_cert_pem: &str,
-    token: &str,
-    port: u16,
-) -> anyhow::Result<SetupState> {
-    let ip = local_ip_address::local_ip()
-        .unwrap_or_else(|_| "127.0.0.1".parse().unwrap());
+pub fn build_setup_state(ca_cert_pem: &str, token: &str, port: u16) -> anyhow::Result<SetupState> {
+    let ip = local_ip_address::local_ip().unwrap_or_else(|_| "127.0.0.1".parse().unwrap());
     let host_url = format!("https://{}:{}", ip, port);
 
     let mobileconfig = mobileconfig::generate_mobileconfig(ca_cert_pem)?;

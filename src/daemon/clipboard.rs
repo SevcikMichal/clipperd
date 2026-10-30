@@ -6,7 +6,11 @@ use tracing::{debug, warn};
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClipboardContent {
     Text(String),
-    Image { width: usize, height: usize, rgba_bytes: Vec<u8> },
+    Image {
+        width: usize,
+        height: usize,
+        rgba_bytes: Vec<u8>,
+    },
     Empty,
 }
 
@@ -23,7 +27,11 @@ impl ClipboardContent {
     pub fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
         match self {
             ClipboardContent::Text(s) => Ok(s.as_bytes().to_vec()),
-            ClipboardContent::Image { width, height, rgba_bytes } => {
+            ClipboardContent::Image {
+                width,
+                height,
+                rgba_bytes,
+            } => {
                 use image::{ImageBuffer, Rgba};
                 let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
                     ImageBuffer::from_raw(*width as u32, *height as u32, rgba_bytes.clone())
@@ -37,8 +45,8 @@ impl ClipboardContent {
     }
 
     fn hash(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
         use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
         let mut h = DefaultHasher::new();
         match self {
             ClipboardContent::Text(s) => s.hash(&mut h),
@@ -77,7 +85,11 @@ pub fn write_to_system_clipboard(content: &ClipboardContent) -> anyhow::Result<(
     let mut cb = Clipboard::new()?;
     match content {
         ClipboardContent::Text(text) => cb.set_text(text)?,
-        ClipboardContent::Image { width, height, rgba_bytes } => {
+        ClipboardContent::Image {
+            width,
+            height,
+            rgba_bytes,
+        } => {
             let img_data = arboard::ImageData {
                 width: *width,
                 height: *height,
@@ -148,9 +160,8 @@ mod tests {
             0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1
             0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, // 8-bit RGB, CRC
             0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, // IDAT chunk
-            0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00,
-            0x00, 0x00, 0x02, 0x00, 0x01, 0xE2, 0x21, 0xBC,
-            0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, // IEND
+            0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, 0xE2,
+            0x21, 0xBC, 0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, // IEND
             0x44, 0xAE, 0x42, 0x60, 0x82,
         ];
         let result = parse_incoming(png, "image/png");
@@ -168,7 +179,12 @@ mod tests {
     fn mime_types_are_correct() {
         assert_eq!(ClipboardContent::Text("x".into()).mime_type(), "text/plain");
         assert_eq!(
-            ClipboardContent::Image { width: 1, height: 1, rgba_bytes: vec![0; 4] }.mime_type(),
+            ClipboardContent::Image {
+                width: 1,
+                height: 1,
+                rgba_bytes: vec![0; 4]
+            }
+            .mime_type(),
             "image/png"
         );
         assert_eq!(ClipboardContent::Empty.mime_type(), "text/plain");

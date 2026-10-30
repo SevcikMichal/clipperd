@@ -1,16 +1,19 @@
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use rustls_pemfile::certs;
 
 pub fn generate_mobileconfig(ca_cert_pem: &str) -> anyhow::Result<String> {
     let mut reader = std::io::BufReader::new(ca_cert_pem.as_bytes());
     let der_certs: Vec<_> = certs(&mut reader).collect::<Result<_, _>>()?;
-    let der = der_certs.first().ok_or_else(|| anyhow::anyhow!("No cert in PEM"))?;
+    let der = der_certs
+        .first()
+        .ok_or_else(|| anyhow::anyhow!("No cert in PEM"))?;
     let cert_b64 = BASE64.encode(der.as_ref());
 
     let uuid = generate_uuid();
     let profile_uuid = generate_uuid();
 
-    Ok(format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+    Ok(format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -52,7 +55,8 @@ pub fn generate_mobileconfig(ca_cert_pem: &str) -> anyhow::Result<String> {
     <integer>1</integer>
 </dict>
 </plist>
-"#))
+"#
+    ))
 }
 
 fn generate_uuid() -> String {
