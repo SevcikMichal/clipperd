@@ -13,9 +13,7 @@ use tower_http::trace::TraceLayer;
 use tracing::{info, warn};
 
 use crate::daemon::auth::require_auth;
-use crate::daemon::clipboard::{
-    parse_incoming, write_to_system_clipboard, ClipboardContent, SharedState,
-};
+use crate::daemon::clipboard::{parse_incoming, write_to_system_clipboard, SharedState};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -183,6 +181,7 @@ pub async fn run_setup_server(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::daemon::clipboard::ClipboardContent;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use tower::ServiceExt;
