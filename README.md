@@ -66,7 +66,7 @@ clipperd setup
 On the phone:
 
 1. Open the HTTP setup URL shown in the terminal and download the CA profile.
-2. Verify the certificate fingerprint against the terminal and install the profile.
+2. Verify the downloaded profile as described below, then install it.
 3. In **Settings > General > About > Certificate Trust Settings**, trust the Clipperd CA.
 4. Scan the HTTPS pairing QR code shown in the terminal and tap **Pair device**.
    You can also open the HTTPS pairing URL and enter the code manually.
@@ -76,10 +76,19 @@ Stop setup with Ctrl+C when finished. The pairing code is valid for 10 minutes
 and can be used once. Keep the pairing QR code and your Shortcuts private:
 the Shortcuts contain your authentication token.
 
+The certificate profile is downloaded over HTTP and can be altered in transit.
+Only use setup on a trusted network. Verify the actual downloaded profile
+independently before installing it; comparing the HTTP page's fingerprint to
+the terminal does not verify the profile. The terminal fingerprint is the first
+16 bytes of the DER-encoded certificate's BLAKE3 hash, not a standard SHA-256 fingerprint.
+iOS may not display a comparable fingerprint, so verification may require
+external tools. Review the profile for unexpected contents as well.
+
 By default, Clipperd uses your LAN address. To use a specific local interface,
 such as a Tailscale IP, run `clipperd setup --bind-ip <IP>` on first setup.
 Changing the binding on an existing configuration requires removing the config
 and running setup again. This generates new credentials and requires re-pairing.
+An existing config keeps its saved port; `setup --port` only applies to a new config.
 
 ## Run
 
@@ -116,8 +125,8 @@ Touch > Back Tap**.
 
 - The daemon uses HTTPS on port 7171 by default.
 - Setup uses HTTPS on the same port and HTTP on the next port for the CA profile.
-- The HTTP page does not serve the authentication token. Verify the CA fingerprint
-  before trusting the certificate, then enter the pairing code over HTTPS.
+- The HTTP page does not serve the authentication token. Verify the downloaded
+  profile before trusting the certificate, then enter the pairing code over HTTPS.
 - Firewall rules are not configured automatically. Allow the ports on the
   intended interface and restrict access to trusted devices or networks.
   The HTTP setup port is only needed during pairing.
