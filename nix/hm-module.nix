@@ -41,6 +41,7 @@ in
         Description = "Clipperd — iPhone clipboard sync daemon";
         After = [ "graphical-session.target" ];
         PartOf = [ "graphical-session.target" ];
+        ConditionPathExists = "%h/.config/clipperd/config.toml";
       };
 
       Service = {
@@ -54,7 +55,7 @@ in
         PrivateTmp = true;
         ProtectSystem = "strict";
         ProtectHome = "read-only";
-        ReadWritePaths = [ "%h/.config/clipperd" "%h/Downloads" ];
+        ReadWritePaths = [ "%h/.config/clipperd" "-%h/Downloads" ];
       };
 
       Install = lib.mkIf cfg.autoStart {

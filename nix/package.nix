@@ -2,6 +2,9 @@
 , rustPlatform
 , makeWrapper
 , libnotify
+, cmake
+, pkg-config
+, wayland
 }:
 
 rustPlatform.buildRustPackage {
@@ -13,7 +16,8 @@ rustPlatform.buildRustPackage {
 
   cargoLock.lockFile = ../Cargo.lock;
 
-  nativeBuildInputs = [ makeWrapper ];
+  nativeBuildInputs = [ makeWrapper cmake pkg-config ];
+  buildInputs = [ wayland ];
 
   postInstall = ''
     wrapProgram $out/bin/clipperd \
