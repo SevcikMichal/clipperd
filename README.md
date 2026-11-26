@@ -70,11 +70,11 @@ On the phone:
 3. In **Settings > General > About > Certificate Trust Settings**, trust the Clipperd CA.
 4. Scan the HTTPS pairing QR code shown in the terminal and tap **Pair device**.
    You can also open the HTTPS pairing URL and enter the code manually.
-5. Download the two Shortcuts or follow the instructions to create them manually.
+5. Follow the instructions to create the two Shortcuts.
 
 Stop setup with Ctrl+C when finished. The pairing code is valid for 10 minutes
-and can be used once. Keep the pairing QR code private. Keep the downloaded Shortcuts private: they contain your
-authentication token.
+and can be used once. Keep the pairing QR code and your Shortcuts private:
+the Shortcuts contain your authentication token.
 
 By default, Clipperd uses your LAN address. To use a specific local interface,
 such as a Tailscale IP, run `clipperd setup --bind-ip <IP>` on first setup.

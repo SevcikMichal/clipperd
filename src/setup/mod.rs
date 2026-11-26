@@ -1,10 +1,9 @@
 pub mod mobileconfig;
-pub mod shortcut;
 
 use axum::{
     body::Bytes,
     extract::State as AxumState,
-    http::{header, HeaderMap, HeaderValue, StatusCode},
+    http::{header, HeaderValue, StatusCode},
     response::{Html, IntoResponse, Response},
     routing::get,
     Router,
@@ -15,21 +14,13 @@ use std::time::{Duration, Instant};
 
 use crate::daemon::auth::constant_time_eq;
 
-const SESSION_COOKIE: &str = "__Host-clipperd_pairing";
-const SESSION_DURATION: Duration = Duration::from_secs(10 * 60);
-
 #[derive(Clone)]
 pub struct SetupState {
     pub host_url: String,
     pub token: String,
     pub pairing_code: String,
     pairing_expires_at: Instant,
-    pairing_session: Arc<Mutex<Option<PairingSession>>>,
-}
-
-struct PairingSession {
-    token: String,
-    expires_at: Instant,
+    pairing_used: Arc<Mutex<bool>>,
 }
 
 #[derive(Clone)]
@@ -48,8 +39,6 @@ pub fn bootstrap_router(state: BootstrapState) -> Router {
 pub fn pairing_router(state: SetupState) -> Router {
     Router::new()
         .route("/pair", get(pairing_page).post(submit_pairing_code))
-        .route("/shortcuts/send.shortcut", get(serve_send_shortcut))
-        .route("/shortcuts/get.shortcut", get(serve_get_shortcut))
         .with_state(Arc::new(state))
 }
 
@@ -83,8 +72,8 @@ async fn submit_pairing_code(
     let valid_code = submitted
         .is_some_and(|submitted| constant_time_eq(state.pairing_code.as_bytes(), submitted.as_bytes()));
 
-    let mut session = state.pairing_session.lock().unwrap();
-    if !valid_code || Instant::now() >= state.pairing_expires_at || session.is_some() {
+    let mut used = state.pairing_used.lock().unwrap();
+    if !valid_code || Instant::now() >= state.pairing_expires_at || *used {
         return (
             StatusCode::UNAUTHORIZED,
             [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))],
@@ -93,75 +82,8 @@ async fn submit_pairing_code(
             .into_response();
     }
 
-    let random: [u8; 32] = rand::rng().random();
-    let token = hex::encode(random);
-    let cookie = HeaderValue::from_str(&format!(
-        "{SESSION_COOKIE}={token}; Path=/; Max-Age=600; Secure; HttpOnly; SameSite=Strict"
-    ))
-    .expect("generated session cookie must be a valid header");
-    *session = Some(PairingSession {
-        token,
-        expires_at: Instant::now() + SESSION_DURATION,
-    });
-
-    let mut response = html_no_store(render_setup_html(&state));
-    response.headers_mut().insert(header::SET_COOKIE, cookie);
-    response
-}
-
-fn authenticated_session(state: &SetupState, headers: &HeaderMap) -> bool {
-    let session = state.pairing_session.lock().unwrap();
-    let Some(session) = session.as_ref().filter(|session| Instant::now() < session.expires_at) else {
-        return false;
-    };
-
-    headers.get_all(header::COOKIE).iter().filter_map(|value| value.to_str().ok())
-        .flat_map(|value| value.split(';'))
-        .filter_map(|cookie| cookie.trim().split_once('='))
-        .any(|(name, token)| {
-            name == SESSION_COOKIE && constant_time_eq(session.token.as_bytes(), token.as_bytes())
-        })
-}
-
-async fn serve_send_shortcut(
-    AxumState(state): AxumState<Arc<SetupState>>,
-    headers: HeaderMap,
-) -> Response {
-    if !authenticated_session(&state, &headers) {
-        return StatusCode::UNAUTHORIZED.into_response();
-    }
-
-    shortcut_download(
-        "attachment; filename=\"Clipperd-Send.shortcut\"",
-        shortcut::generate_send_shortcut(&state.host_url, &state.token),
-    )
-}
-
-async fn serve_get_shortcut(
-    AxumState(state): AxumState<Arc<SetupState>>,
-    headers: HeaderMap,
-) -> Response {
-    if !authenticated_session(&state, &headers) {
-        return StatusCode::UNAUTHORIZED.into_response();
-    }
-
-    shortcut_download(
-        "attachment; filename=\"Clipperd-Get.shortcut\"",
-        shortcut::generate_get_shortcut(&state.host_url, &state.token),
-    )
-}
-
-fn shortcut_download(disposition: &'static str, contents: String) -> Response {
-    (
-        StatusCode::OK,
-        [
-            (header::CACHE_CONTROL, "no-store"),
-            (header::CONTENT_TYPE, "application/octet-stream"),
-            (header::CONTENT_DISPOSITION, disposition),
-        ],
-        contents,
-    )
-        .into_response()
+    *used = true;
+    html_no_store(render_setup_html(&state))
 }
 
 fn html_no_store(html: String) -> Response {
@@ -293,8 +215,6 @@ fn render_setup_html(state: &SetupState) -> String {
   .card {{ background: white; border-radius: 12px; padding: 24px; margin: 16px 0; box-shadow: 0 2px 8px rgba(0,0,0,.08); }}
   .step {{ display: flex; gap: 16px; align-items: flex-start; margin: 12px 0; }}
   .num {{ background: #007aff; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }}
-  a.btn {{ display: inline-block; background: #007aff; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; margin: 8px 4px; }}
-  a.btn.green {{ background: #34c759; }}
   .mono {{ font-family: monospace; font-size: 13px; background: #f0f0f0; padding: 8px 12px; border-radius: 6px; word-break: break-all; }}
   .warn {{ color: #ff9500; font-size: 13px; }}
 </style>
@@ -302,10 +222,7 @@ fn render_setup_html(state: &SetupState) -> String {
 <body>
 <h1>Clipperd Setup</h1>
 <p>Certificate verified. Follow the steps below to configure clipboard sync.</p>
-<p>Download the shortcuts, or create them manually using the instructions below.
-Downloads are available for 10 minutes after pairing.</p>
-<p><a class="btn" href="/shortcuts/send.shortcut">Download Clipperd Send</a>
-<a class="btn green" href="/shortcuts/get.shortcut">Download Clipperd Get</a></p>
+<p>Create the shortcuts using the instructions below.</p>
 
 <div class="card">
   <h2>Step 1 — Create "Clipperd Send" (iPhone → Linux)</h2>
@@ -379,7 +296,7 @@ pub fn build_setup_state(token: &str, host_url: String, pairing_code: String) ->
         token: token.to_string(),
         pairing_code,
         pairing_expires_at: Instant::now() + Duration::from_secs(10 * 60),
-        pairing_session: Arc::new(Mutex::new(None)),
+        pairing_used: Arc::new(Mutex::new(false)),
     }
 }
 
@@ -443,8 +360,13 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(valid.status(), StatusCode::OK);
+        assert_eq!(valid.headers().get(header::CACHE_CONTROL).unwrap(), "no-store");
+        assert!(valid.headers().get(header::SET_COOKIE).is_none());
         let body = to_bytes(valid.into_body(), usize::MAX).await.unwrap();
-        assert!(String::from_utf8_lossy(&body).contains("Bearer secret-token"));
+        let body = String::from_utf8_lossy(&body);
+        assert!(body.contains("Bearer secret-token"));
+        assert!(body.contains("https://100.64.0.1:7171/v1/clipboard"));
+        assert!(!body.contains("/shortcuts/"));
 
         let replay = app
             .oneshot(
@@ -460,83 +382,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn shortcut_downloads_require_pairing_and_valid_session() {
+    async fn shortcut_downloads_are_not_available() {
         let app = pairing_app();
-        let paths = ["/shortcuts/send.shortcut", "/shortcuts/get.shortcut"];
-
-        for path in paths {
+        for path in ["/shortcuts/send.shortcut", "/shortcuts/get.shortcut"] {
             let response = app.clone()
                 .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
                 .await
                 .unwrap();
-            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
         }
+    }
 
-        let paired = app.clone()
+    #[tokio::test]
+    async fn expired_pairing_code_is_rejected() {
+        let mut state = build_setup_state(
+            "secret-token",
+            "https://100.64.0.1:7171".to_string(),
+            "a1b2c3d4".to_string(),
+        );
+        state.pairing_expires_at = Instant::now();
+        let response = pairing_router(state)
             .oneshot(
                 Request::builder()
                     .method("POST")
                     .uri("/pair")
                     .body(Body::from("code=a1b2c3d4"))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        let cookie = paired.headers().get(header::SET_COOKIE).unwrap().to_str().unwrap();
-        assert!(cookie.contains("Secure"));
-        assert!(cookie.contains("HttpOnly"));
-        assert!(cookie.contains("SameSite=Strict"));
-        let session_cookie = cookie.split(';').next().unwrap();
-
-        for path in paths {
-            let response = app.clone()
-                .oneshot(
-                    Request::builder()
-                        .uri(path)
-                        .header(header::COOKIE, session_cookie)
-                        .body(Body::empty())
-                        .unwrap(),
-                )
-                .await
-                .unwrap();
-            assert_eq!(response.status(), StatusCode::OK);
-            assert_eq!(response.headers().get(header::CACHE_CONTROL).unwrap(), "no-store");
-            let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-            let body = String::from_utf8(body.to_vec()).unwrap();
-            assert!(body.contains("Bearer secret-token"));
-            assert!(body.contains("https://100.64.0.1:7171/v1/clipboard"));
-        }
-
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri(paths[0])
-                    .header(header::COOKIE, format!("{SESSION_COOKIE}=invalid"))
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    }
-
-    #[tokio::test]
-    async fn expired_session_cannot_download_shortcuts() {
-        let state = build_setup_state(
-            "secret-token",
-            "https://100.64.0.1:7171".to_string(),
-            "a1b2c3d4".to_string(),
-        );
-        *state.pairing_session.lock().unwrap() = Some(PairingSession {
-            token: "expired-token".to_string(),
-            expires_at: Instant::now(),
-        });
-        let response = pairing_router(state)
-            .oneshot(
-                Request::builder()
-                    .uri("/shortcuts/send.shortcut")
-                    .header(header::COOKIE, format!("{SESSION_COOKIE}=expired-token"))
-                    .body(Body::empty())
                     .unwrap(),
             )
             .await
