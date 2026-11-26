@@ -164,14 +164,17 @@ async fn cmd_setup(
         setup::build_bootstrap_state(&cfg.ca_cert_pem, fingerprint.clone())?;
     let pairing_state = setup::build_setup_state(&cfg.token, host_url, pairing_code.clone());
 
-    // Print QR code
-    println!("📷 Scan this QR code on your iPhone:");
+    println!("📷 Scan this QR code to install the CA certificate:");
     println!();
     print_qr(&setup_url);
     println!();
     println!("   Or open:  {}", setup_url);
     println!();
-    println!("🔐 After installing and trusting the CA certificate, open:");
+    println!("🔐 After installing and trusting the CA certificate, scan this QR code to pair:");
+    println!();
+    print_qr(&format!("{}#code={}", pairing_url, pairing_code));
+    println!();
+    println!("   Or open:");
     println!("   {}", pairing_url);
     println!(
         "   Pairing code (valid for 10 minutes, one use): {}",

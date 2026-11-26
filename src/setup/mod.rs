@@ -58,7 +58,17 @@ async fn bootstrap_page(AxumState(state): AxumState<Arc<BootstrapState>>) -> Res
 }
 
 async fn pairing_page(AxumState(_state): AxumState<Arc<SetupState>>) -> Response {
-    html_no_store(render_pairing_form())
+    let nonce: [u8; 16] = rand::rng().random();
+    let nonce = hex::encode(nonce);
+    let mut response = html_no_store(render_pairing_form(&nonce));
+    response.headers_mut().insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_str(&format!(
+            "default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-{nonce}'; form-action 'self'; base-uri 'none'"
+        ))
+        .expect("generated CSP nonce must be a valid header"),
+    );
+    response
 }
 
 async fn submit_pairing_code(
@@ -190,36 +200,83 @@ async fn serve_mobileconfig(AxumState(state): AxumState<Arc<BootstrapState>>) ->
 fn render_bootstrap_html(state: &BootstrapState) -> String {
     format!(r#"<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Clipperd Certificate Setup</title></head>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipperd Certificate Setup</title>
+<style>
+  body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; background: #f5f5f7; color: #1d1d1f; }}
+  h1 {{ font-size: 28px; }}
+  .card {{ background: white; border-radius: 12px; padding: 24px; margin: 16px 0; box-shadow: 0 2px 8px rgba(0,0,0,.08); }}
+  .step {{ display: flex; gap: 16px; align-items: flex-start; margin: 12px 0; }}
+  .num {{ background: #007aff; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }}
+  a.btn {{ display: inline-block; background: #007aff; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; margin: 8px 0; }}
+  .mono {{ font-family: monospace; font-size: 13px; background: #f0f0f0; padding: 8px 12px; border-radius: 6px; word-break: break-all; }}
+  .warn {{ color: #995700; font-size: 14px; }}
+</style>
+</head>
 <body>
-<h1>Clipperd Certificate Setup</h1>
-<p>Install the CA certificate, then verify its fingerprint against the value shown in the terminal.</p>
-<p><strong>Fingerprint:</strong> <code>{fingerprint}</code></p>
-<p><a href="/setup.mobileconfig">Download CA certificate</a></p>
-<p>After installing and trusting the certificate, open the HTTPS pairing URL printed in the terminal.</p>
+<h1>Clipperd Setup</h1>
+<p>Start by installing the CA certificate on your iPhone.</p>
+<div class="card">
+  <h2>Install CA Certificate</h2>
+  <div class="step"><div class="num">1</div><div>Tap <b>Download Certificate</b> to download the profile.</div></div>
+  <div class="step"><div class="num">2</div><div>Verify the downloaded certificate's fingerprint against the value shown in your terminal, then install the profile in <b>Settings &gt; General &gt; VPN &amp; Device Management</b>.</div></div>
+  <div class="step"><div class="num">3</div><div>Go to <b>Settings &gt; General &gt; About &gt; Certificate Trust Settings</b> and enable full trust for <b>Clipperd CA</b>.</div></div>
+  <a class="btn" href="/setup.mobileconfig">Download Certificate</a>
+  <p class="warn">Verify the downloaded certificate independently. The fingerprint shown on this HTTP page alone does not verify it.</p>
+  <p><strong>Fingerprint:</strong></p>
+  <div class="mono">{fingerprint}</div>
+</div>
+<div class="card">
+  <h2>Continue to Pairing</h2>
+  <p>After trusting the certificate, scan the pairing QR code in your terminal, or open the HTTPS pairing URL and enter the code manually.</p>
+</div>
 </body>
 </html>"#,
         fingerprint = state.fingerprint,
     )
 }
 
-fn render_pairing_form() -> String {
-    r#"<!DOCTYPE html>
+fn render_pairing_form(nonce: &str) -> String {
+    format!(r#"<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Clipperd Pairing</title></head>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipperd Pairing</title>
+<style>
+  body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; background: #f5f5f7; color: #1d1d1f; }}
+  h1 {{ font-size: 28px; }}
+  .card {{ background: white; border-radius: 12px; padding: 24px; margin: 16px 0; box-shadow: 0 2px 8px rgba(0,0,0,.08); }}
+  label {{ display: block; font-weight: 600; margin-bottom: 8px; }}
+  input {{ box-sizing: border-box; width: 100%; padding: 12px; border: 1px solid #a1a1a6; border-radius: 8px; font-family: monospace; font-size: 16px; }}
+  input:focus {{ outline: 2px solid #007aff; outline-offset: 2px; }}
+  button {{ background: #007aff; color: white; border: 0; border-radius: 8px; padding: 12px 24px; font: inherit; font-weight: 600; margin-top: 16px; cursor: pointer; }}
+</style>
+</head>
 <body>
 <h1>Clipperd Pairing</h1>
-<p>Enter the temporary code shown in the terminal.</p>
+<p>Pair your iPhone with Clipperd.</p>
+<div class="card">
+<h2>Pair Device</h2>
+<p>Scan the pairing QR code or enter the temporary code shown in the terminal.</p>
 <form method="post" action="/pair">
 <label for="code">Pairing code</label>
-<input id="code" name="code" type="text" autocomplete="off" required>
+<input id="code" name="code" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" required>
 <button type="submit">Pair device</button>
 </form>
+</div>
+<script nonce="{nonce}">
+  const match = /^#code=([0-9a-f]{{32}})$/.exec(window.location.hash);
+  if (match) {{
+    document.getElementById('code').value = match[1];
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  }}
+</script>
 </body>
 </html>"#
-        .to_string()
+    )
 }
 
 fn render_setup_html(state: &SetupState) -> String {
@@ -347,9 +404,15 @@ mod tests {
             .oneshot(Request::builder().uri("/pair").body(Body::empty()).unwrap())
             .await
             .unwrap();
+        let csp = response.headers().get(header::CONTENT_SECURITY_POLICY).unwrap()
+            .to_str().unwrap().to_string();
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = String::from_utf8(body.to_vec()).unwrap();
+        let nonce = body.split("<script nonce=\"").nth(1).unwrap()
+            .split('"').next().unwrap();
 
-        assert!(!String::from_utf8_lossy(&body).contains("secret-token"));
+        assert!(!body.contains("secret-token"));
+        assert!(csp.contains(&format!("script-src 'nonce-{nonce}'")));
     }
 
     #[tokio::test]
