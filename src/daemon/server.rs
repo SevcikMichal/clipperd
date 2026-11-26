@@ -140,6 +140,7 @@ pub async fn run_https_server(
     cert_pem: &str,
     key_pem: &str,
     bind_local_only: bool,
+    bind_ip: Option<std::net::IpAddr>,
 ) -> anyhow::Result<()> {
     let tls_config = RustlsConfig::from_pem(
         cert_pem.as_bytes().to_vec(),
@@ -149,7 +150,9 @@ pub async fn run_https_server(
 
     let app = build_app(state);
 
-    let ip: std::net::IpAddr = if bind_local_only {
+    let ip: std::net::IpAddr = if let Some(ip) = bind_ip {
+        ip
+    } else if bind_local_only {
         local_ip_address::local_ip().unwrap_or_else(|_| "127.0.0.1".parse().unwrap())
     } else {
         "0.0.0.0".parse().unwrap()
@@ -167,14 +170,45 @@ pub async fn run_https_server(
 
 pub async fn run_setup_server(
     port: u16,
-    setup_routes: Router,
+    bootstrap_routes: Router,
+    pairing_routes: Router,
+    cert_pem: &str,
+    key_pem: &str,
+    bind_local_only: bool,
+    bind_ip: Option<std::net::IpAddr>,
 ) -> anyhow::Result<()> {
-    let ip = local_ip_address::local_ip().unwrap_or_else(|_| "127.0.0.1".parse().unwrap());
-    let addr = SocketAddr::new(ip, port);
-    info!("Setup HTTP server on http://{}", addr);
+    let bootstrap_port = port
+        .checked_add(1)
+        .ok_or_else(|| anyhow::anyhow!("Setup port cannot be incremented"))?;
+    let ip = if let Some(ip) = bind_ip {
+        ip
+    } else if bind_local_only {
+        local_ip_address::local_ip().unwrap_or_else(|_| "127.0.0.1".parse().unwrap())
+    } else {
+        "0.0.0.0".parse().unwrap()
+    };
+    let bootstrap_addr = SocketAddr::new(ip, bootstrap_port);
+    let pairing_addr = SocketAddr::new(ip, port);
+    info!("Certificate setup on http://{}", bootstrap_addr);
+    info!("Secure pairing on https://{}/pair", pairing_addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, setup_routes).await?;
+    let bootstrap_listener = tokio::net::TcpListener::bind(bootstrap_addr).await?;
+    let tls_config =
+        RustlsConfig::from_pem(cert_pem.as_bytes().to_vec(), key_pem.as_bytes().to_vec()).await?;
+
+    tokio::try_join!(
+        async {
+            axum_server::bind_rustls(pairing_addr, tls_config)
+                .serve(pairing_routes.into_make_service())
+                .await
+                .map_err(anyhow::Error::from)
+        },
+        async {
+            axum::serve(bootstrap_listener, bootstrap_routes)
+                .await
+                .map_err(anyhow::Error::from)
+        }
+    )?;
     Ok(())
 }
 

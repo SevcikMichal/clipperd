@@ -6,6 +6,8 @@ pub struct Config {
     pub token: String,
     pub port: u16,
     pub bind_local_only: bool,
+    #[serde(default)]
+    pub bind_ip: Option<String>,
     pub cert_pem: String,
     pub key_pem: String,
     pub ca_cert_pem: String,
@@ -47,5 +49,26 @@ impl Config {
 
     pub fn is_configured() -> bool {
         Self::config_path().exists()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn older_config_without_bind_ip_still_loads() {
+        let old_config = r#"
+token = "token"
+port = 7171
+bind_local_only = true
+cert_pem = "cert"
+key_pem = "key"
+ca_cert_pem = "ca"
+cert_ip = "192.168.1.10"
+"#;
+
+        let config: Config = toml::from_str(old_config).unwrap();
+        assert_eq!(config.bind_ip, None);
     }
 }
